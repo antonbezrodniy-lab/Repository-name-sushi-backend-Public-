@@ -1,55 +1,16 @@
 {
-<<<<<<< HEAD
-  "name": "sushi-bot",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-=======
   "name": "server",
   "version": "1.0.0",
   "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
->>>>>>> 246b22a82cd772592e10e98c0f3c10139327531c
   },
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-<<<<<<< HEAD
-    "express": "^5.2.1",
-    "nodemailer": "^8.0.7",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "stripe": "^22.1.1",
-    "telegraf": "^4.16.3"
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
-    "eslint": "^10.3.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.6.0",
-    "vite": "^8.0.12"
-  },
-  "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
-  "main": "eslint.config.js",
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
-}
-=======
     "express": "^4.18.2",
     "stripe": "^22.1.1",
     "telegraf": "^4.15.0"
   }
 }
->>>>>>> 246b22a82cd772592e10e98c0f3c10139327531c
