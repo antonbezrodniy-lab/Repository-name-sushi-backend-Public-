@@ -1,28 +1,3 @@
-<<<<<<< HEAD
-const express = require("express");
-const { Telegraf } = require("telegraf");
-
-const app = express();
-app.use(express.json());
-
-console.log("🚀 BACKEND STARTED");
-
-const token = process.env.BOT_TOKEN;
-const chatId = process.env.CHAT_ID;
-
-console.log("🔎 TOKEN:", token ? "OK" : "MISSING");
-
-if (!token) {
-  throw new Error("BOT_TOKEN missing");
-}
-
-const bot = new Telegraf(token);
-
-// BOT START
-bot.start((ctx) => {
-  console.log("🔥 START");
-  ctx.reply("🍣 Sushi Bot запущен", {
-=======
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -65,8 +40,10 @@ if (!process.env.CHAT_ID) {
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// 🔥 ВАЖНО: убрать webhook конфликты
-bot.telegram.deleteWebhook().catch(() => {});
+// 🔥 УБИРАЕМ WEBHOOK КОНФЛИКТЫ
+bot.telegram.deleteWebhook({ drop_pending_updates: true })
+  .then(() => console.log("🧹 WEBHOOK CLEARED"))
+  .catch(() => console.log("⚠️ WEBHOOK CLEANUP SKIPPED"));
 
 console.log("🚀 SERVER STARTED");
 
@@ -75,16 +52,11 @@ bot.start((ctx) => {
   console.log("🔥 START COMMAND RECEIVED");
 
   return ctx.reply("🍣 Sushi Bot работает", {
->>>>>>> 246b22a82cd772592e10e98c0f3c10139327531c
     reply_markup: {
       inline_keyboard: [
         [
           {
-<<<<<<< HEAD
-            text: "🚀 Открыть приложение",
-=======
             text: "🚀 Открыть заказ",
->>>>>>> 246b22a82cd772592e10e98c0f3c10139327531c
             web_app: {
               url: "https://mini-app-zeta-rouge.vercel.app"
             }
@@ -95,42 +67,6 @@ bot.start((ctx) => {
   });
 });
 
-<<<<<<< HEAD
-bot.launch()
-  .then(() => console.log("🤖 BOT RUNNING"))
-  .catch(err => console.log("❌ BOT ERROR:", err));
-
-// ORDER API
-app.post("/order", async (req, res) => {
-  const { cart } = req.body;
-
-  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
-
-  const message =
-`🍣 NEW ORDER
-
-💰 TOTAL: ${total}€
-
-📦 ITEMS:
-${cart.map(i => `${i.name} x${i.qty}`).join("\n")}`;
-
-  if (chatId) {
-    await bot.telegram.sendMessage(chatId, message);
-  }
-
-  res.json({ ok: true });
-});
-
-// SERVER
-app.get("/", (req, res) => {
-  res.send("Sushi backend OK");
-});
-
-const PORT = process.env.PORT || 10000;
-
-app.listen(PORT, () => {
-  console.log("🔥 SERVER ON", PORT);
-=======
 // ================= START BOT =================
 bot.launch()
   .then(() => console.log("🤖 BOT RUNNING"))
@@ -142,7 +78,10 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", uptime: process.uptime() });
+  res.json({
+    status: "ok",
+    uptime: process.uptime()
+  });
 });
 
 // ================= STRIPE =================
@@ -151,7 +90,9 @@ app.post("/create-checkout", async (req, res) => {
     const cart = req.body.cart;
 
     if (!Array.isArray(cart) || cart.length === 0) {
-      return res.status(400).json({ error: "Invalid cart" });
+      return res.status(400).json({
+        error: "Invalid cart"
+      });
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -175,22 +116,35 @@ app.post("/create-checkout", async (req, res) => {
 
     console.log("💳 SESSION CREATED:", session.id);
 
-    const total = cart.reduce((s, i) => s + i.qty * i.price, 0);
+    const total = cart.reduce(
+      (s, i) => s + i.qty * i.price,
+      0
+    );
 
     const message =
       `🍣 NEW ORDER\n\n` +
-      cart.map(i => `${i.name} x${i.qty}`).join("\n") +
+      cart.map(i =>
+        `${i.name} x${i.qty} = ${i.price * i.qty}€`
+      ).join("\n") +
       `\n\n💰 TOTAL: ${total}€`;
 
-    await bot.telegram.sendMessage(process.env.CHAT_ID, message);
+    await bot.telegram.sendMessage(
+      process.env.CHAT_ID,
+      message
+    );
 
     console.log("📲 TELEGRAM SENT");
 
-    res.json({ url: session.url });
+    res.json({
+      url: session.url
+    });
 
   } catch (err) {
     console.log("❌ ERROR:", err.message);
-    res.status(500).json({ error: err.message });
+
+    res.status(500).json({
+      error: err.message
+    });
   }
 });
 
@@ -208,5 +162,4 @@ process.on("uncaughtException", (err) => {
 
 process.on("unhandledRejection", (err) => {
   console.log("🔥 UNHANDLED REJECTION:", err);
->>>>>>> 246b22a82cd772592e10e98c0f3c10139327531c
 });
