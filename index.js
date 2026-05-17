@@ -23,6 +23,7 @@ console.log("🔥 ENV CHECK:", {
 // ================= SAFETY CHECKS =================
 if (!process.env.STRIPE_SECRET_KEY) {
   console.log("❌ STRIPE_SECRET_KEY missing");
+  process.exit(1);
 }
 
 if (!process.env.BOT_TOKEN) {
@@ -32,21 +33,23 @@ if (!process.env.BOT_TOKEN) {
 
 if (!process.env.CHAT_ID) {
   console.log("❌ CHAT_ID missing");
+  process.exit(1);
 }
 
-// ================= STRIPE =================
+// ================= INIT =================
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
-// ================= TELEGRAM BOT =================
 const bot = new Telegraf(process.env.BOT_TOKEN);
+
+// 🔥 ВАЖНО: убрать webhook конфликты
+bot.telegram.deleteWebhook().catch(() => {});
 
 console.log("🚀 SERVER STARTED");
 
-// ================= BOT START =================
+// ================= BOT =================
 bot.start((ctx) => {
   console.log("🔥 START COMMAND RECEIVED");
 
-  ctx.reply("🍣 Sushi Bot работает", {
+  return ctx.reply("🍣 Sushi Bot работает", {
     reply_markup: {
       inline_keyboard: [
         [
@@ -62,40 +65,26 @@ bot.start((ctx) => {
   });
 });
 
-// ================= BOT LAUNCH =================
+// ================= START BOT =================
 bot.launch()
   .then(() => console.log("🤖 BOT RUNNING"))
   .catch((err) => console.log("❌ BOT ERROR:", err));
 
-// ================= EXPRESS ROUTES =================
+// ================= EXPRESS =================
 app.get("/", (req, res) => {
   res.send("SERVER OK");
 });
 
 app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "ok",
-    uptime: process.uptime(),
-  });
+  res.json({ status: "ok", uptime: process.uptime() });
 });
 
-// ================= STRIPE CHECKOUT =================
+// ================= STRIPE =================
 app.post("/create-checkout", async (req, res) => {
-  console.log("🔥 CHECKOUT HIT");
-
   try {
     const cart = req.body.cart;
 
-    if (
-      !Array.isArray(cart) ||
-      cart.length === 0 ||
-      cart.some(
-        (item) =>
-          !item.name ||
-          typeof item.price !== "number" ||
-          typeof item.qty !== "number"
-      )
-    ) {
+    if (!Array.isArray(cart) || cart.length === 0) {
       return res.status(400).json({ error: "Invalid cart" });
     }
 
@@ -122,35 +111,31 @@ app.post("/create-checkout", async (req, res) => {
 
     const total = cart.reduce((s, i) => s + i.qty * i.price, 0);
 
-    const text = cart
-      .map((i) => `${i.name} x${i.qty} = ${i.price * i.qty}€`)
-      .join("\n");
+    const message =
+      `🍣 NEW ORDER\n\n` +
+      cart.map(i => `${i.name} x${i.qty}`).join("\n") +
+      `\n\n💰 TOTAL: ${total}€`;
 
-    const message = `🍣 NEW ORDER\n\n${text}\n\n💰 TOTAL: ${total}€`;
+    await bot.telegram.sendMessage(process.env.CHAT_ID, message);
 
-    try {
-      await bot.telegram.sendMessage(process.env.CHAT_ID, message);
-      console.log("📲 TELEGRAM SENT");
-    } catch (err) {
-      console.log("❌ TELEGRAM ERROR:", err.message);
-    }
+    console.log("📲 TELEGRAM SENT");
 
     res.json({ url: session.url });
 
   } catch (err) {
-    console.log("❌ STRIPE ERROR:", err.message);
+    console.log("❌ ERROR:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ================= START SERVER =================
+// ================= SERVER =================
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log("🔥 SERVER RUNNING ON PORT", PORT);
 });
 
-// ================= ERROR HANDLERS =================
+// ================= CRASH HANDLERS =================
 process.on("uncaughtException", (err) => {
   console.log("🔥 UNCAUGHT ERROR:", err);
 });
