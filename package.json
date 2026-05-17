@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "name": "sushi-bot",
   "private": true,
   "version": "0.0.0",
@@ -8,10 +9,19 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
+=======
+  "name": "server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+>>>>>>> 246b22a82cd772592e10e98c0f3c10139327531c
   },
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+<<<<<<< HEAD
     "express": "^5.2.1",
     "nodemailer": "^8.0.7",
     "react": "^19.2.6",
@@ -36,3 +46,10 @@
   "author": "",
   "license": "ISC"
 }
+=======
+    "express": "^4.18.2",
+    "stripe": "^22.1.1",
+    "telegraf": "^4.15.0"
+  }
+}
+>>>>>>> 246b22a82cd772592e10e98c0f3c10139327531c
