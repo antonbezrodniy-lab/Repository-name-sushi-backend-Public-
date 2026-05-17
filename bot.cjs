@@ -1,24 +1,58 @@
 const { Telegraf } = require("telegraf");
 const express = require("express");
 
-const bot = new Telegraf("8899788725:AAFp7koJ9mShfpsm2Ft3n9GuPQMnTst8REY");
 const app = express();
-
 app.use(express.json());
+
+// ================= BOT TOKEN =================
+const BOT_TOKEN = process.env."8899788725:AAHLECtIaBExZwuAPnmQ7jubaNAOBS-2DIo";
+
+if (!BOT_TOKEN) {
+  console.log("❌ BOT TOKEN MISSING");
+  process.exit(1);
+}
+
+const bot = new Telegraf(BOT_TOKEN);
 
 const ADMIN_ID = 5723771392;
 
-// ===================== API FROM FRONTEND =====================
+console.log("🚀 SERVER STARTING");
+
+// ================= TELEGRAM START =================
+bot.start((ctx) => {
+  console.log("🔥 START RECEIVED");
+
+  ctx.reply("🍣 Sushi Boss", {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: "🚀 Сделать заказ",
+            web_app: {
+              url: "https://mini-app-zeta-rouge.vercel.app"
+            }
+          }
+        ]
+      ]
+    }
+  });
+});
+
+// ================= ORDER API =================
 app.post("/api/order", async (req, res) => {
   try {
-    const { cart = [], total = 0, address = "no address", phone = "no phone" } = req.body;
+    const {
+      cart = [],
+      total = 0,
+      address = "no address",
+      phone = "no phone"
+    } = req.body;
 
     const itemsText = cart.length
       ? cart.map(i => `- ${i.name} ${i.price}€`).join("\n")
       : "empty cart";
 
-    const text =
-`🍣 NEW ORDER
+    const text = `🍣 NEW ORDER
 
 📍 ${address}
 📞 ${phone}
@@ -37,25 +71,28 @@ ${itemsText}`;
   }
 });
 
-// ===================== TELEGRAM START =====================
-bot.start((ctx) => {
-  ctx.reply("🍣 Sushi Boss", {
-    reply_markup: {
-      keyboard: [[
-        {
-          text: "🚀 Сделать заказ",
-          web_app: {
-            url: "https://mini-app-zeta-rouge.vercel.app"
-          }
-        }
-      ]]
-    }
-  });
+// ================= BOT ERROR HANDLING =================
+bot.catch((err) => {
+  console.log("🔥 BOT ERROR:", err);
 });
 
-// ===================== BOT START =====================
-bot.launch();
+// ================= START BOT =================
+(async () => {
+  try {
+    await bot.launch();
+    console.log("🤖 BOT IS RUNNING");
+  } catch (err) {
+    console.log("❌ BOT LAUNCH ERROR:", err);
+  }
+})();
 
-app.listen(3000, () => {
-  console.log("🍣 BOT RUNNING");
+// ================= EXPRESS SERVER =================
+app.get("/", (req, res) => {
+  res.send("OK");
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("🍣 SERVER RUNNING ON PORT", PORT);
 });
