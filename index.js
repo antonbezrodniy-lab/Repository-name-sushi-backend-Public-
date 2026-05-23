@@ -27,6 +27,10 @@ for (const key of requiredEnv) {
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const bot = new Telegraf(process.env.BOT_TOKEN);
+const telegramStatus = {
+  state: "starting",
+  error: null,
+};
 
 app.use(cors({ origin: "*" }));
 
@@ -91,8 +95,12 @@ async function startBot() {
     });
 
     await bot.launch();
+    telegramStatus.state = "running";
+    telegramStatus.error = null;
     console.log("Bot running");
   } catch (err) {
+    telegramStatus.state = "error";
+    telegramStatus.error = err.message;
     console.log("Bot start error:", err);
   }
 }
@@ -229,6 +237,7 @@ app.get("/health", (req, res) => {
   res.json({
     status: "ok",
     uptime: process.uptime(),
+    telegram: telegramStatus,
   });
 });
 
