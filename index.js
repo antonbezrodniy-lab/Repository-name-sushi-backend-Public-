@@ -83,6 +83,10 @@ async function startBot() {
       });
     });
 
+    bot.command("chatid", (ctx) => {
+      return ctx.reply(`CHAT_ID: ${ctx.chat.id}`);
+    });
+
     bot.catch((err) => {
       console.log("Bot error:", err);
     });
