@@ -78,13 +78,8 @@ async function startBot() {
     const identity = await withTimeout(bot.telegram.getMe(), "Telegram getMe");
     console.log("Telegram startup: connected as", `@${identity.username}`);
 
-    console.log("Telegram startup: disabling webhook for polling mode");
-    await withTimeout(
-      bot.telegram.deleteWebhook({ drop_pending_updates: true }),
-      "Telegram deleteWebhook"
-    );
-
     bot.start((ctx) => {
+      console.log("Telegram command received: /start");
       return ctx.reply("Sushi Bot works", {
         reply_markup: {
           inline_keyboard: [
@@ -109,11 +104,14 @@ async function startBot() {
       console.log("Bot error:", err);
     });
 
-    console.log("Telegram startup: launching polling");
-    await withTimeout(bot.launch(), "Telegram polling launch");
     telegramStatus.state = "running";
     telegramStatus.error = null;
-    console.log("Bot running");
+    console.log("Telegram startup: launching polling");
+    void bot.launch({ dropPendingUpdates: true }).catch((err) => {
+      telegramStatus.state = "error";
+      telegramStatus.error = err.message;
+      console.log("Bot polling error:", err.message);
+    });
   } catch (err) {
     telegramStatus.state = "error";
     telegramStatus.error = err.message;
