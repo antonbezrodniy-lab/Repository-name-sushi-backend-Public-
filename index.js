@@ -183,26 +183,12 @@ async function sendPaidOrderToTelegram(session) {
   const customer = JSON.parse(session.metadata.customer || "{}");
   const total = cart.reduce((sum, item) => sum + item.qty * item.price, 0);
   const orders = await readOrders();
+  const existingOrder = orders.find((order) => order.stripeSessionId === session.id);
 
-  if (orders.some((order) => order.stripeSessionId === session.id)) {
-    console.log("Paid order already processed:", session.id);
+  if (existingOrder?.telegramSentAt) {
+    console.log("Paid order already sent to Telegram:", session.id);
     return;
   }
-
-  const order = {
-    id: session.id,
-    stripeSessionId: session.id,
-    status: "paid",
-    paymentStatus: session.payment_status,
-    customer,
-    items: cart,
-    total,
-    currency: session.currency,
-    createdAt: new Date().toISOString(),
-  };
-
-  orders.unshift(order);
-  await writeOrders(orders);
 
   const message = formatOrderMessage({
     sessionId: session.id,
@@ -212,6 +198,25 @@ async function sendPaidOrderToTelegram(session) {
   });
 
   await bot.telegram.sendMessage(process.env.CHAT_ID, message);
+
+  if (existingOrder) {
+    existingOrder.telegramSentAt = new Date().toISOString();
+  } else {
+    orders.unshift({
+      id: session.id,
+      stripeSessionId: session.id,
+      status: "paid",
+      paymentStatus: session.payment_status,
+      customer,
+      items: cart,
+      total,
+      currency: session.currency,
+      createdAt: new Date().toISOString(),
+      telegramSentAt: new Date().toISOString(),
+    });
+  }
+
+  await writeOrders(orders);
   console.log("Paid order sent to Telegram:", session.id);
 }
 
