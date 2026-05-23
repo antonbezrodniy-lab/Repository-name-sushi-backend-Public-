@@ -15,7 +15,6 @@ const PORT = process.env.PORT || 5000;
 const FRONTEND_URL =
   process.env.FRONTEND_URL || "https://mini-app-zeta-rouge.vercel.app";
 const ORDERS_FILE = join(dirname(fileURLToPath(import.meta.url)), "orders.json");
-const TELEGRAM_POLLING_ENABLED = process.env.TELEGRAM_POLLING_ENABLED !== "false";
 
 const requiredEnv = ["STRIPE_SECRET_KEY", "BOT_TOKEN", "CHAT_ID"];
 
@@ -220,11 +219,7 @@ async function sendPaidOrderToTelegram(session) {
   console.log("Paid order sent to Telegram:", session.id);
 }
 
-if (TELEGRAM_POLLING_ENABLED) {
-  startBot();
-} else {
-  console.log("Telegram polling disabled");
-}
+startBot();
 
 app.get("/", (req, res) => {
   res.send("SERVER OK");

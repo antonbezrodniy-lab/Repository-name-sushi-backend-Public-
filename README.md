@@ -16,11 +16,7 @@ STRIPE_SECRET_KEY=sk_test_your_key
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
 BOT_TOKEN=your_telegram_bot_token
 CHAT_ID=your_telegram_chat_id
-TELEGRAM_POLLING_ENABLED=true
 ```
-
-For local frontend/API testing while a deployed bot is already active, run with
-`TELEGRAM_POLLING_ENABLED=false`.
 
 Routes:
 
