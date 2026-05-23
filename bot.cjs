@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 
 // ================= BOT TOKEN =================
-const BOT_TOKEN = process.env."8899788725:AAHLECtIaBExZwuAPnmQ7jubaNAOBS-2DIo";
+const BOT_TOKEN = process.env.BOT_TOKEN;
 
 if (!BOT_TOKEN) {
   console.log("❌ BOT TOKEN MISSING");

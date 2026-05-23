@@ -31,6 +31,13 @@ const telegramStatus = {
   state: "starting",
   error: null,
 };
+const withTimeout = (promise, operation) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${operation} timed out`)), 15000);
+    }),
+  ]);
 
 app.use(cors({ origin: "*" }));
 
@@ -67,7 +74,15 @@ app.use(express.json());
 
 async function startBot() {
   try {
-    await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+    console.log("Telegram startup: checking bot token");
+    const identity = await withTimeout(bot.telegram.getMe(), "Telegram getMe");
+    console.log("Telegram startup: connected as", `@${identity.username}`);
+
+    console.log("Telegram startup: disabling webhook for polling mode");
+    await withTimeout(
+      bot.telegram.deleteWebhook({ drop_pending_updates: true }),
+      "Telegram deleteWebhook"
+    );
 
     bot.start((ctx) => {
       return ctx.reply("Sushi Bot works", {
@@ -94,7 +109,8 @@ async function startBot() {
       console.log("Bot error:", err);
     });
 
-    await bot.launch();
+    console.log("Telegram startup: launching polling");
+    await withTimeout(bot.launch(), "Telegram polling launch");
     telegramStatus.state = "running";
     telegramStatus.error = null;
     console.log("Bot running");
