@@ -1,16 +1,45 @@
-# React + Vite
+# Sushi Backend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Express API with Telegram bot and Stripe checkout.
 
-Currently, two official plugins are available:
+```bash
+npm install
+npm start
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Required `.env` values:
 
-## React Compiler
+```env
+PORT=5000
+FRONTEND_URL=https://your-frontend-url.vercel.app
+STRIPE_SECRET_KEY=sk_test_your_key
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+BOT_TOKEN=your_telegram_bot_token
+CHAT_ID=your_telegram_chat_id
+TELEGRAM_POLLING_ENABLED=true
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+For local frontend/API testing while a deployed bot is already active, run with
+`TELEGRAM_POLLING_ENABLED=false`.
 
-## Expanding the ESLint configuration
+Routes:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```text
+GET  /
+GET  /health
+GET  /api/orders
+POST /create-checkout
+POST /stripe-webhook
+```
+
+In Stripe Dashboard, create a webhook endpoint:
+
+```text
+https://your-backend-url.com/stripe-webhook
+```
+
+Enable this event:
+
+```text
+checkout.session.completed
+```

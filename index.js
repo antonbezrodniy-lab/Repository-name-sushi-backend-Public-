@@ -5,74 +5,218 @@ import express from "express";
 import cors from "cors";
 import Stripe from "stripe";
 import { Telegraf } from "telegraf";
-
-console.log("🔥 NODE_ENV:", process.env.NODE_ENV);
+import { readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const app = express();
 
-app.use(cors({ origin: "*" }));
-app.use(express.json());
+const PORT = process.env.PORT || 5000;
+const FRONTEND_URL =
+  process.env.FRONTEND_URL || "https://mini-app-zeta-rouge.vercel.app";
+const ORDERS_FILE = join(dirname(fileURLToPath(import.meta.url)), "orders.json");
+const TELEGRAM_POLLING_ENABLED = process.env.TELEGRAM_POLLING_ENABLED !== "false";
 
-// ================= ENV CHECK =================
-console.log("🔥 ENV CHECK:", {
-  STRIPE: !!process.env.STRIPE_SECRET_KEY,
-  BOT: !!process.env.BOT_TOKEN,
-  CHAT: !!process.env.CHAT_ID,
-});
+const requiredEnv = ["STRIPE_SECRET_KEY", "BOT_TOKEN", "CHAT_ID"];
 
-// ================= SAFETY CHECKS =================
-if (!process.env.STRIPE_SECRET_KEY) {
-  console.log("❌ STRIPE_SECRET_KEY missing");
-  process.exit(1);
+for (const key of requiredEnv) {
+  if (!process.env[key]) {
+    console.log(`${key} missing`);
+    process.exit(1);
+  }
 }
 
-if (!process.env.BOT_TOKEN) {
-  console.log("❌ BOT_TOKEN missing");
-  process.exit(1);
-}
-
-if (!process.env.CHAT_ID) {
-  console.log("❌ CHAT_ID missing");
-  process.exit(1);
-}
-
-// ================= INIT =================
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// 🔥 УБИРАЕМ WEBHOOK КОНФЛИКТЫ
-bot.telegram.deleteWebhook({ drop_pending_updates: true })
-  .then(() => console.log("🧹 WEBHOOK CLEARED"))
-  .catch(() => console.log("⚠️ WEBHOOK CLEANUP SKIPPED"));
+app.use(cors({ origin: "*" }));
 
-console.log("🚀 SERVER STARTED");
+// Stripe needs the raw request body for webhook signature verification.
+app.post(
+  "/stripe-webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    try {
+      if (!process.env.STRIPE_WEBHOOK_SECRET) {
+        return res.status(500).send("STRIPE_WEBHOOK_SECRET missing");
+      }
 
-// ================= BOT =================
-bot.start((ctx) => {
-  console.log("🔥 START COMMAND RECEIVED");
+      const signature = req.headers["stripe-signature"];
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
 
-  return ctx.reply("🍣 Sushi Bot работает", {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          {
-            text: "🚀 Открыть заказ",
-            web_app: {
-              url: "https://mini-app-zeta-rouge.vercel.app"
-            }
-          }
-        ]
-      ]
+      if (event.type === "checkout.session.completed") {
+        await sendPaidOrderToTelegram(event.data.object);
+      }
+
+      res.json({ received: true });
+    } catch (err) {
+      console.log("Stripe webhook error:", err.message);
+      res.status(400).send(`Webhook error: ${err.message}`);
     }
+  }
+);
+
+app.use(express.json());
+
+async function startBot() {
+  try {
+    await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+
+    bot.start((ctx) => {
+      return ctx.reply("Sushi Bot works", {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "Open order",
+                web_app: {
+                  url: FRONTEND_URL,
+                },
+              },
+            ],
+          ],
+        },
+      });
+    });
+
+    bot.catch((err) => {
+      console.log("Bot error:", err);
+    });
+
+    await bot.launch();
+    console.log("Bot running");
+  } catch (err) {
+    console.log("Bot start error:", err);
+  }
+}
+
+async function readOrders() {
+  try {
+    const content = await readFile(ORDERS_FILE, "utf8");
+    const orders = JSON.parse(content);
+    return Array.isArray(orders) ? orders : [];
+  } catch (err) {
+    if (err.code === "ENOENT") return [];
+    throw err;
+  }
+}
+
+async function writeOrders(orders) {
+  await writeFile(ORDERS_FILE, `${JSON.stringify(orders, null, 2)}\n`, "utf8");
+}
+
+function normalizeCart(cart) {
+  if (!Array.isArray(cart) || cart.length === 0) {
+    throw new Error("Invalid cart");
+  }
+
+  return cart.map((item) => {
+    const name = String(item.name || "").trim();
+    const price = Number(item.price);
+    const qty = Number(item.qty);
+
+    if (!name || !Number.isFinite(price) || price <= 0) {
+      throw new Error("Invalid cart item");
+    }
+
+    if (!Number.isInteger(qty) || qty < 1 || qty > 99) {
+      throw new Error("Invalid item quantity");
+    }
+
+    return {
+      id: String(item.id || name),
+      name,
+      price,
+      qty,
+    };
   });
-});
+}
 
-// ================= START BOT =================
-bot.launch()
-  .then(() => console.log("🤖 BOT RUNNING"))
-  .catch((err) => console.log("❌ BOT ERROR:", err));
+function normalizeCustomer(customer = {}) {
+  return {
+    name: String(customer.name || "").trim().slice(0, 120),
+    phone: String(customer.phone || "").trim().slice(0, 80),
+    address: String(customer.address || "").trim().slice(0, 180),
+    comment: String(customer.comment || "").trim().slice(0, 120),
+  };
+}
 
-// ================= EXPRESS =================
+function formatOrderMessage({ sessionId, cart, customer, total }) {
+  const items = cart
+    .map((item) => `${item.name} x${item.qty} = ${item.price * item.qty} EUR`)
+    .join("\n");
+
+  const customerLines = [
+    customer.name && `Name: ${customer.name}`,
+    customer.phone && `Phone: ${customer.phone}`,
+    customer.address && `Address: ${customer.address}`,
+    customer.comment && `Comment: ${customer.comment}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return [
+    "PAID ORDER",
+    "",
+    items,
+    "",
+    `Total: ${total} EUR`,
+    customerLines && "",
+    customerLines,
+    "",
+    `Stripe session: ${sessionId}`,
+  ]
+    .filter((line) => line !== false)
+    .join("\n");
+}
+
+async function sendPaidOrderToTelegram(session) {
+  const cart = JSON.parse(session.metadata.cart || "[]");
+  const customer = JSON.parse(session.metadata.customer || "{}");
+  const total = cart.reduce((sum, item) => sum + item.qty * item.price, 0);
+  const orders = await readOrders();
+
+  if (orders.some((order) => order.stripeSessionId === session.id)) {
+    console.log("Paid order already processed:", session.id);
+    return;
+  }
+
+  const order = {
+    id: session.id,
+    stripeSessionId: session.id,
+    status: "paid",
+    paymentStatus: session.payment_status,
+    customer,
+    items: cart,
+    total,
+    currency: session.currency,
+    createdAt: new Date().toISOString(),
+  };
+
+  orders.unshift(order);
+  await writeOrders(orders);
+
+  const message = formatOrderMessage({
+    sessionId: session.id,
+    cart,
+    customer,
+    total,
+  });
+
+  await bot.telegram.sendMessage(process.env.CHAT_ID, message);
+  console.log("Paid order sent to Telegram:", session.id);
+}
+
+if (TELEGRAM_POLLING_ENABLED) {
+  startBot();
+} else {
+  console.log("Telegram polling disabled");
+}
+
 app.get("/", (req, res) => {
   res.send("SERVER OK");
 });
@@ -80,25 +224,29 @@ app.get("/", (req, res) => {
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
-    uptime: process.uptime()
+    uptime: process.uptime(),
   });
 });
 
-// ================= STRIPE =================
+app.get("/api/orders", async (req, res) => {
+  try {
+    const orders = await readOrders();
+    res.json(orders);
+  } catch (err) {
+    console.log("Orders read error:", err.message);
+    res.status(500).json({ error: "Could not read orders" });
+  }
+});
+
 app.post("/create-checkout", async (req, res) => {
   try {
-    const cart = req.body.cart;
-
-    if (!Array.isArray(cart) || cart.length === 0) {
-      return res.status(400).json({
-        error: "Invalid cart"
-      });
-    }
+    const cart = normalizeCart(req.body.cart);
+    const customer = normalizeCustomer(req.body.customer);
+    const total = cart.reduce((sum, item) => sum + item.qty * item.price, 0);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
-
       line_items: cart.map((item) => ({
         price_data: {
           currency: "eur",
@@ -109,57 +257,33 @@ app.post("/create-checkout", async (req, res) => {
         },
         quantity: item.qty,
       })),
-
-      success_url: "https://google.com",
-      cancel_url: "https://google.com",
+      metadata: {
+        cart: JSON.stringify(cart),
+        customer: JSON.stringify(customer),
+      },
+      success_url: `${FRONTEND_URL}?payment=success`,
+      cancel_url: `${FRONTEND_URL}?payment=cancel`,
     });
 
-    console.log("💳 SESSION CREATED:", session.id);
-
-    const total = cart.reduce(
-      (s, i) => s + i.qty * i.price,
-      0
-    );
-
-    const message =
-      `🍣 NEW ORDER\n\n` +
-      cart.map(i =>
-        `${i.name} x${i.qty} = ${i.price * i.qty}€`
-      ).join("\n") +
-      `\n\n💰 TOTAL: ${total}€`;
-
-    await bot.telegram.sendMessage(
-      process.env.CHAT_ID,
-      message
-    );
-
-    console.log("📲 TELEGRAM SENT");
-
-    res.json({
-      url: session.url
-    });
-
+    console.log("Checkout session created:", session.id, "Total:", total);
+    res.json({ url: session.url });
   } catch (err) {
-    console.log("❌ ERROR:", err.message);
-
-    res.status(500).json({
-      error: err.message
-    });
+    console.log("Checkout error:", err.message);
+    res.status(400).json({ error: err.message });
   }
 });
 
-// ================= SERVER =================
-const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
-  console.log("🔥 SERVER RUNNING ON PORT", PORT);
+  console.log("Server running on port", PORT);
 });
 
-// ================= CRASH HANDLERS =================
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
+
 process.on("uncaughtException", (err) => {
-  console.log("🔥 UNCAUGHT ERROR:", err);
+  console.log("Uncaught error:", err);
 });
 
 process.on("unhandledRejection", (err) => {
-  console.log("🔥 UNHANDLED REJECTION:", err);
+  console.log("Unhandled rejection:", err);
 });
